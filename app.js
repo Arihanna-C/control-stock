@@ -1,11 +1,73 @@
-let cajaInicial = Number(localStorage.getItem("cajaInicial"))|| 0;
-let totalVentas = Number(localStorage.getItem("totalVentas"))|| 0;
+function leerLocal(clave, defecto) {
+	const data = localStorage.getItem(clave);
+	return data !== null ? JSON.parse(data) : defecto;
+}
+
+function leerNumeroLocal(clave, defecto = 0) {
+	const data = localStorage.getItem(clave);
+	return data !== null ? Number(data) : defecto;
+}
+
+function guardarLocal(clave, valor) {
+	localStorage.setItem(clave, JSON.stringify(valor));
+}
+
+function guardarNumeroLocal(clave, valor) {
+	localStorage.setItem(clave, valor);
+}
+
+let MODO_ONLINE = false;
+let MODO = "local";
+let cajaInicial = leerNumeroLocal("cajaInicial", 0);
+let totalVentas = leerNumeroLocal("totalVentas", 0);
 let textoBuscador = "";
 let categoriasAbiertas = {};
-let ventas = JSON.parse(localStorage.getItem("ventas")) || [];
-let productos = 
-JSON.parse(localStorage.getItem("productos")) || [];
-let turnos = JSON.parse(localStorage.getItem("turnos")) || [];
+let ventas = leerLocal("ventas", []);
+productos = leerLocal("productos", []);
+let turnos = leerLocal("turnos", []);
+
+async function cargarTurnos() {
+	if (MODO_ONLINE) {
+		return await cargarTurnosOnline();
+	} else {
+		return JSON.parse(localStorage.getItem("turnos")) || [];
+	}
+}
+
+async function guardarTurnos(turnos) {
+	if (MODO_ONLINE) {
+		await guardarTurnosOnline(turnos);
+	} else {
+		localStorage.setItem("turnos", JSON.stringify(turnos));
+	}
+}
+
+async function cargarTurnosOnline() {
+	console.warn("Modo ONLINE no implementado");
+	return [];
+}
+
+async function guardarTurnosOnline(turnos) {
+	console.warn("Guardado ONLINE no implementado");
+}
+
+function cargar() {
+	if(MODO === "local") {
+		productos = leerLocal("productos", []);
+	}
+}
+
+function inicializarModo() {
+	const modo = localStorage.getItem("modo");
+	const btn = document.getElementById("btn-modo");
+
+	if(modo === "dark") {
+		document.body.classList.add("dark");
+		if(btn) btn.textContent = "☀ Modo claro";
+		}else{
+		if(btn) btn.textConten = "🌙 Modo oscuro";
+	}
+}
 
 function miAlert(mensaje, titulo="Atención", callback){
 	mostrarModal({ tipo: "alert", titulo, mensaje, callback });
@@ -19,8 +81,16 @@ function miPrompt(mensaje, titulo="Ingresar dato", callback) {
 	mostrarModal({ tipo: "prompt", titulo, mensaje, callback });
 }
 
+function leerColorPrincipal() {
+	return localStorage.getItem("colorPrincipal");
+}
+
+function guardarColorPrincipal(color) {
+	localStorage.setItem("colorPrincipal", color);
+}
+
 const botonesColor = document.querySelectorAll(".colores button");
-const colorGuardado = localStorage.getItem("colorPrincipal");
+const colorGuardado = leerColorPrincipal();
 
 if (colorGuardado) {
 	document.documentElement.style.setProperty("--primary", colorGuardado);
@@ -39,7 +109,7 @@ botonesColor.forEach(btn => {
 		const color = btn.dataset.color;
 
 	document.documentElement.style.setProperty("--primary", color);
-		localStorage.setItem("colorPrincipal", color);
+		guardarColorPrincipal(color);
 
 	botonesColor.forEach(b =>
 		b.classList.remove("activo"));
@@ -48,8 +118,10 @@ botonesColor.forEach(btn => {
 });
 
 function guardarCaja(){
-	localStorage.setItem("cajaInicial", cajaInicial);
-	localStorage.setItem("totalVentas", totalVentas);
+	if (MODO === "local") {
+		guardarNumeroLocal("cajaInicial", cajaInicial);
+		guardarNumeroLocal("totalVentas", totalVentas);
+	}
 }
 
 function iniciarTurno(){
@@ -64,7 +136,9 @@ function iniciarTurno(){
 }
 
 function guardarTurnos(){
-	localStorage.setItem("turnos", JSON.stringify(turnos));
+	if (MODO === "local") {
+		guardarLocal("turnos", turnos);
+	}
 }
 
 function mostrarCaja(){
@@ -110,7 +184,9 @@ function generarResumenTurno(){
 
 
 function guardarVentas(){
-	localStorage.setItem("ventas",JSON.stringify(ventas));
+	if(MODO === "local") {
+		guardarLocal("ventas", ventas);
+	}
 }
 
 function mostrarVentas(){
@@ -136,7 +212,9 @@ function mostrarVentas(){
 }
 
 function guardar() {
-	localStorage.setItem("productos",JSON.stringify(productos));
+	if (MODO === "local") {
+		guardarLocal("productos", productos);
+	}
 }
 
 function agregarProducto() {
@@ -462,6 +540,10 @@ function cerrarTurno(){
 
 	if(res === null) return;
 	const real = Number(res);
+	if (isNaN(real)) {
+		miAlert("Ingresá un número válido", "Error");
+		return;
+	}
 
 	const diferencia = real - esperado;
 
@@ -491,7 +573,7 @@ function cerrarTurno(){
 
 		const turno = {
 			id: Date.now(),
-			fecha: Date.now(),
+			fecha: new Date().toISOString(),
 			cajaInicial: resumenTurno.cajaInicial,
 			totalVentas: resumenTurno.totalVentas,
 			cajaEsperada: resumenTurno.cajaEsperada,
@@ -529,17 +611,8 @@ function toggleModo(){
 		btn.textContent = "☀ Modo claro";
 	}else{
 		localStorage.setItem("modo", "light");
-		btn.textContent = "🌙 Modo Oscuro";
+		btn.textContent = "🌙 Modo oscuro";
 	}
-}
-
-	if(localStorage.getItem("modo") === "dark"){
-		document.body.classList.add("dark");
-	}
-
-	let btn = document.getElementById("btn-modo");
-	if(btn  && document.body.classList.contains("dark")){
-		btn.textContent = "☀ Modo claro";
 }
 
 function toggleMenu(id){
@@ -550,17 +623,27 @@ function toggleMenu(id){
 	});
 
 	const menu = document.getElementById(`menu-${id}`);
+		if(!menu) return;
 		menu.style.display = menu.style.display === "block" ? "none" : "block";
 }
 
 function editarPrecio(id){
 	const prod = productos.find(p => p.id === id);
+	if(!prod) return;
+
 	miPrompt(`Nuevo precio para ${prod.producto}:`, "Ingresar precio", (res) => {
-	if(res !== null){
-		res = Number(nuevo);
+	if(res === null) return;
+	
+	const precio = Number(res);
+
+	if(isNaN(precio) || precio <= 0) {
+		miAlert("Ingresá un precio válido", "Error");
+		return;
+	}
+		prod.precio = precio;
 		guardar();
 		mostrar();
-	}
+
 	});
 }
 
@@ -601,17 +684,18 @@ function mostrarResumenTurno(){
 }
 
 function exportarTurnoTXT(){
-	if (ventas.length === 0){
+	if (turnos.length === 0){
 		miAlert("No hay ventas para exportar");
 		return;
 	}
 
-	const data = generarResumenTurno();
+	const data = turnos[turnos.length - 1];
+	const fechaFormateada = new Date(data.fecha).toLocaleString("es-AR");
 
 	let texto = "";
 	texto += "RESUMEN DEL TURNO\n";
 	texto += "=================\n\n";
-	texto += `Fecha: ${data.fecha}\n`;
+	texto += `Fecha: ${fechaFormateada}\n`;
 	texto += `Caja inicial: $${data.cajaInicial}\n`;
 	texto += `Total vendido: $${data.totalVentas}\n`;
 	texto += `Caja esperada: $${data.cajaEsperada}\n\n`;
@@ -633,7 +717,7 @@ function exportarTurnoTXT(){
 
 	const a = document.createElement("a");
 	a.href = url;
-	a.download = `resumen_turno_${Date.now()}.text`;
+	a.download = `resumen_turno_${Date.now()}.txt`;
 	a.click();
 
 	URL.revokeObjectURL(url);
@@ -654,7 +738,6 @@ function cargarSelectorMes(){
 			selectMes.innerHTML +=`<option value="${i}">${m}</option>`;
 		});
 
-		turnos = JSON.parse(localStorage.getItem("turnos")) || [];
 		const anios = [...new Set(turnos.map(t => new Date(t.fecha).getFullYear()))];
 
 		selectAnio.innerHTML = "";
@@ -670,6 +753,7 @@ function cargarSelectorMes(){
 function mostrarResumenMensual(){
 	const mes = Number(document.getElementById("mes").value);
 	const anio = Number(document.getElementById("anio").value);
+	const meses = [ "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre" ];
 
 	const contenedor = document.getElementById("resumen-mensual");
 	if(!contenedor) return;
@@ -711,7 +795,7 @@ function mostrarResumenMensual(){
 
 	let html =`
 	<h3>Resumen mensual</h3>
-	<p><strong>Mes:</strong> ${mes + 1}/${anio}</p>
+	<p><strong>Mes:</strong> ${meses[mes]}/${anio}</p>
 	<p>Turnos: ${filtrados.length}</p>
 	<p>Total vendido: $${totalGeneral}</p>
 	<p>Promedio por turno: $${promedio}</p>
@@ -738,6 +822,7 @@ function mostrarResumenMensual(){
 function exportarResumenMensualTXT(){
 	const mes = Number(document.getElementById("mes").value);
 	const anio = Number(document.getElementById("anio").value);
+	const meses = [ "Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio", "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre" ];
 
 	const filtrados = turnos.filter(t => {
 		const f = new Date(t.fecha);
@@ -771,11 +856,14 @@ function exportarResumenMensualTXT(){
 		}
 	});
 
+	const promedio = Math.round(totalGeneral / filtrados.length);
+
 	let texto = "";
 	texto += "RESUMEN MENSUAL\n";
 	texto += "====================\n\n";
-	texto += `Mes: ${mes + 1}/${anio}\n`;
+	texto += `Mes: ${meses[mes]} ${anio}\n`;
 	texto += `Total vendido: $${totalGeneral}\n\n`;
+	texto += `Promedio por turno: $${promedio}\n\n`;
 
 	for(let categoria in resumen){
 		texto += `${categoria.toUpperCase()}\n`;
@@ -824,19 +912,18 @@ function cargarSelectorSemana(){
 
 	if(!selectSemana || !selectAnio) return;
 
-	turnos = JSON.parse(localStorage.getItem("turnos")) || [];
-
 	const anios = [...new Set(turnos.map(t => new Date(t.fecha).getFullYear()))];
-	selectAnio.innerHTML = "";
 
+	selectAnio.innerHTML = "";
 	anios.forEach(a=>{
 		selectAnio.innerHTML += `<option value="${a}">${a}</option>`;
 	});
 
 	selectSemana.innerHTML = "";
-	for(let i = 1; i <= 53; i++){
-		const rango = obtenerRangoSemana(selectAnio.value || new Date().getFullYear(), i);
+	const anioActual = Number(selectAnio.value) || new Date().getFullYear();
 
+	for(let i = 1; i <= 53; i++){
+		const rango = obtenerRangoSemana(anioActual, i);
 		const texto = `
 			${rango.lunes.toLocaleDateString()} al ${rango.domingo.toLocaleDateString()}
 		`;
@@ -851,6 +938,11 @@ function mostrarResumenSemanal(){
 
 	const contenedor = document.getElementById("resumen-semanal");
 		if(!contenedor) return;
+
+	if (isNaN(semana) || isNaN(anio)) {
+		contenedor.innerHTML = "<p>Seleccioná semana y año.<p>";
+	return;
+	}
 
 	const filtrados = turnos.filter(t => {
 		const f = new Date(t.fecha);
@@ -911,6 +1003,11 @@ function exportarResumenSemanalPDF(){
 	const semana = Number(document.getElementById("semana").value);
 	const anio = Number(document.getElementById("anio-semana").value);
 
+	if (isNaN(semana) || isNaN(anio)) {
+		miAlert("Seleccioná semana y año");
+		return;
+	}
+
 	const rango = obtenerRangoSemana(anio, semana);
 
 	let total = 0;
@@ -950,7 +1047,16 @@ function exportarResumenSemanalPDF(){
 		}
 	}
 
+	if (total === 0){
+		miAlert("No hay datos para exportar esta semana");
+		return;
+	}
+
 	const ventana = window.open("", "_blank");
+	if (!ventana) {
+		miAlert("El navegador bloqueó la ventana emergente");
+		return;
+	}
 	ventana.document.write(`
 		<!DOCTYPE html>
 		<html>
@@ -996,13 +1102,18 @@ function exportarResumenSemanalTXT(){
 	const anio = Number(document.getElementById("anio-semana").value);
 	const semana = Number(document.getElementById("semana").value);
 
+	if (isNaN(anio) || isNaN(semana)) {
+		miAlert("Seleccioná semana y año");
+		return;
+	}
+
 	const filtrados = turnos.filter(t => {
 		const f = new Date(t.fecha);
 		return obtenerSemana(f) === semana && f.getFullYear() === anio;
 	});
 
 	if(filtrados.length === 0){
-		alert("No hay turnos en esta semana");
+		miAlert("No hay turnos en esta semana");
 		return;
 	}
 
@@ -1048,6 +1159,7 @@ function exportarResumenSemanalTXT(){
 	texto += "\n";
 	}
 
+	texto += "\n-------------------------------\n";
 	texto += `TOTAL SEMANAL: $${totalGeneral}\n`;
 
 	const blob = new Blob([texto], { type: "text/plain;charset=utf-8" });
@@ -1065,8 +1177,6 @@ function exportarResumenSemanalTXT(){
 function exportarResumenMensualPDF(){
 	const mes = Number(document.getElementById("mes").value);
 	const anio = Number(document.getElementById("anio").value);
-
-	const rango = obtenerRangoSemana(anio, mes + 1);
 
 	let total = 0;
 	let detalle = {};
@@ -1160,3 +1270,14 @@ document.addEventListener("click", e => {
 	
 cargarSelectorSemana();
 cargarSelectorMes();
+
+function usarOnline() {
+	MODO = "online";
+}
+
+function usarLocal() {
+	MODO = "local";
+}
+
+cargar();
+inicializarModo();
